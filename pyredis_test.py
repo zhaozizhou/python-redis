@@ -11,16 +11,19 @@ master = sentinel.discover_master('mymaster')
 
 master = sentinel.master_for('mymaster',db=0,encoding='utf-8',decode_responses=True)#, socket_timeout=0.5
 
+slave = sentinel.slave_for('mymaster',db=0,encoding='utf-8',decode_responses=True)
+
+print(slave.info(section='Replication'))
 
 
-list1=[1,2,3,4,5,6,7,8,9,0]
-tablename="sbtest100"
-#str4 = ','.join('%s' %id for id in list1)
-for ide in list1:
-    ide=str(ide)
-    #master.rpush(tablename,ide)
-
-len1=tuple(master.smembers(tablename))
-print(len1)
-for i in len1:
-    print(i)
+#list1=[1,2,3,4,5,6,7,8,9,0]
+#tablename="sbtest100"
+##str4 = ','.join('%s' %id for id in list1)
+#for ide in list1:
+#    ide=str(ide)
+#    #master.rpush(tablename,ide)
+#
+#len1=tuple(master.smembers(tablename))
+#print(len1)
+#for i in len1:
+#    print(i)
