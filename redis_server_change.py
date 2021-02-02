@@ -1,14 +1,14 @@
 import redis
 import pymysql
-#import sqlite3
 from redis.sentinel import Sentinel
+import datetime
+import time
+import argparse
+from argparse import RawTextHelpFormatter
 #sentinel = Sentinel([('192.168.1.10', 26379)], socket_timeout=0.1)
 
-###声明变量
+###声明全局变量
 dic_name_to_sentinel={}
-num_of_sentinel=3 #判断每个redis的sentinel数
-num_of_slave=2 #判断每个redis的slave数
-
 ###创建数据库连接
 #conn = pymysql.connect(host='192.168.1.6', port=3306, user='mozis', passwd='ktlshy34YU$',db='server_change',charset="utf8")
 #cursor = conn.cursor()
@@ -18,6 +18,28 @@ num_of_slave=2 #判断每个redis的slave数
 #data = cursor.fetchall()
 # 关闭数据库连接
 #conn.close()
+
+###传入参数
+def _argparse():  
+    head = '''--------------------------------------------------------------------------
+5年设备替换 -- redis切换脚本
+--------------------------------------------------------------------------'''
+
+    example_text = '''examples:
+
+    \n
+'''
+    parser = argparse.ArgumentParser(description=head,formatter_class=RawTextHelpFormatter, epilog=example_text)
+    parser.add_argument('-w',dest='wait',required=True,help='切换等待时间')
+    parser.add_argument('-S',dest='sentinel',required=True,help='切换所需sentinel个数')
+    parser.add_argument('-s',dest='slave',required=True,help='每个master切换所需的slave个数')
+    parser.add_argument('-t',choices=['check','execute'],default='check',dest='_type',required=True,help='检查check OR 执行切换execute')
+    return parser.parse_args()
+
+
+
+
+
 
 #取master0  mastername sentinel等信息
 def all_sentinel_get():
@@ -33,7 +55,7 @@ def all_sentinel_get():
     #print(r.info(section='Sentinel')['master0'])
     list_master_num=list(r.info(section='Sentinel').keys())
     master_num=list_master_num[4:]
-    #print(master_num)
+    print(master_num)
     for num in master_num:
         #print(num)
         name_sentinel=all[num]['name']
@@ -284,14 +306,68 @@ def config_check():
             print(5)
 
 
-
+#切换
 def change():
+    #sentinel = Sentinel([('192.168.1.10', 26379),('192.168.1.10', 26380),('192.168.1.10', 26382),],socket_timeout=0.5)
+    redis_conf={'host':'192.168.1.10','port':26379,'decode_responses':True}
     mysql_conf={'host':'192.168.1.6', 'port':3306, 'user':'mozis', 'passwd':'ktlshy34YU$','db':'server_change','charset':"utf8"}
     conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
     cursor.execute("select master_name from redis_sentinel;")
     all_redis=cursor.fetchall()
-    print(all_redis)
+    #print(all_redis)
+    for change_sentinel in all_redis:
+        dt_begin=datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        #print(change_sentinel[0])
+        sentinelname=change_sentinel[0]
+        #master = sentinel.discover_master(sentinelname)
+        #print(master)
+        #print(dt)
+        try:
+            cursor.execute("update redis_sentinel set starttime = {0};".format(dt_begin)) ######开始
+            conn.commit()
+        except pymysql.Error as e:
+            print(e.args[0], e.args[1])
+            conn.rollback()
+        r = redis.Redis(**redis_conf)
+        p=r.sentinel_failover(sentinelname)
+        #"failover",change_sentinel
+        for i in range(number):
+            time.sleep(1)
+            if p == 'OK':
+                sentinelname_1="'"+sentinelname+"'"
+                cursor.execute("select masterid from redis_sentinel where master_name = {0};".format(sentinelname_1))
+                masterid=cursor.fetchone()
+                #print()
+                all=r.info(section='Sentinel')
+                #print(all)
+                address=all[masterid[0]]['address']
+                address_1="'"+address+"'"
+                try:
+                    cursor.execute("update redis_sentinel set new_master = {0};".format(address_1))
+                    conn.commit()
+                except pymysql.Error as e:
+                    print(e.args[0], e.args[1])
+                    conn.rollback()
+                cursor.execute("select old_master from redis_sentinel where master_name = {0};".format(sentinelname_1))
+                tmp_old_master=cursor.fetchone()[0]
+                cursor.execute("select new_master from redis_sentinel where master_name = {0};".format(sentinelname_1))
+                tmp_new_master=cursor.fetchone()[0]
+                #print(tmp_old_master)
+                #print(tmp_new_master)
+                if tmp_old_master != tmp_new_master:
+                    dt_end=datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                    cursor.execute("update redis_sentinel set endtime = {0};".format(dt_end)) ######结束
+                    conn.commit()
+                    print("change {0} ok !".format(sentinelname))
+                    break
+                else:
+                    print(" {0} change checking ...".format(sentinelname))
+            else:
+                print("{0} sentinel failover error !".format(sentinelname))
+
+
+
 
 
 
@@ -315,6 +391,11 @@ def main():
 
 
 if __name__ == "__main__":
+    parser=_argparse()
+    number = int(parser.wait) #切换后判断等待xxs
+    num_of_sentinel=parser.sentinel #判断每个redis的sentinel数
+    num_of_slave=parser.slave #判断每个redis的slave数
+
     main()
     #check_slave_in_new()
     config_check()
