@@ -27,14 +27,20 @@
 #print(len1)
 #for i in len1:
 #    print(i)
-from tqdm import trange
+from tqdm import tqdm
 from random import random,randint
 import time
  
-with trange(100) as t:
-  for i in t:
-    #设置进度条左边显示的信息
-    t.set_description("GEN %i"%i)
-    #设置进度条右边显示的信息
-    t.set_postfix(loss=random(),gen=randint(1,999),str="h",lst=[1,2])
+#with trange(100) as t:
+#  for i in t:
+#    #设置进度条左边显示的信息
+#    t.set_description("GEN %i"%i)
+#    #设置进度条右边显示的信息
+#    t.set_postfix(loss=random(),gen=randint(1,999),str="h",lst=[1,2])
+#    time.sleep(0.1)
+a=1
+for i in tqdm(range(20), ascii=True,desc="1st loop"):
+  #for j in tqdm(range(10), ascii=True,desc="2nd loop"):
+    a += 1
+    print(a)
     time.sleep(0.1)

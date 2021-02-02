@@ -5,6 +5,7 @@ import datetime
 import time
 import argparse
 from argparse import RawTextHelpFormatter
+from tqdm import tqdm
 #sentinel = Sentinel([('192.168.1.10', 26379)], socket_timeout=0.1)
 
 
@@ -40,8 +41,8 @@ def all_sentinel_get():
     #print(r.info(section='Sentinel')['master0'])
     list_master_num=list(r.info(section='Sentinel').keys())
     master_num=list_master_num[4:]
-    print(master_num)
-    for num in master_num:
+    #print(master_num)
+    for num in tqdm(master_num,desc="GET REDIS_MASTER_NAME"):
         #print(num)
         name_sentinel=all[num]['name']
         num_sentinel=all[num]['sentinels']
@@ -53,10 +54,12 @@ def all_sentinel_get():
         try:
             cursor.execute("insert into redis_sentinel(masterid,master_name,status,slave_num,sentinel_num,old_master) values('{0}','{1}','{2}','{3}','{4}','{5}');".format(num,name_sentinel,status_sentinel,slave_sentinel,num_sentinel,address))
             conn.commit()
-        except:
+        except pymysql.Error as e:
             conn.rollback()
+            conn.close()
+            return(e.args[0], e.args[1])
     conn.close()
-    return("all get ok")
+    return(0)
 
 ##删除不在列表里的sentinle name
 def delete_no_use():
@@ -65,7 +68,7 @@ def delete_no_use():
     cursor = conn.cursor()
     list_table_name_tmp=[]
     try:
-        f = open("/data/python-redis/sentinle_name.txt")             # 返回一个文件对象  
+        f = open(file_sentinle_name)             # 返回一个文件对象  
     except IOError as e:
         #print(e)
         return(e)
@@ -103,7 +106,7 @@ def delete_no_use():
         if count[0][0] == len_table_name:
             print("delete ok")
             conn.close()
-            return 1
+            return 0
         else:
             conn.close()
             return ("delete error")
@@ -119,7 +122,7 @@ def check_sentinel(num_of_sentinel):
     if count_sentinel[0][0] == 0:
         conn.close()
         print("check num_sentinel ok")
-        return 1
+        return 0
     else:
         cursor.execute("select master_name,sentinel_num from redis_sentinel where sentinel_num != {0};".format(num_of_sentinel))
         error_sentinel = cursor.fetchall()
@@ -128,7 +131,7 @@ def check_sentinel(num_of_sentinel):
         for li in error_sentinel:
             #print (li)
             print("ERROR sentinel for {0} is {1}".format(li[0],li[1]))
-        return 2
+        return 1
 
 ##检查redis的slave数
 def check_slave(num_of_slave):
@@ -140,7 +143,7 @@ def check_slave(num_of_slave):
     if count_slave[0][0] == 0:
         conn.close()
         print("check num_slave ok")
-        return 1
+        return 0
     else:
         cursor.execute("select master_name,slave_num from redis_sentinel where slave_num != {0};".format(num_of_slave))
         error_slave = cursor.fetchall()
@@ -149,7 +152,7 @@ def check_slave(num_of_slave):
         for li in error_slave:
             #print (li)
             print("ERROR slave for {0} is {1}".format(li[0],li[1]))
-        return 2
+        return 1
 
 #检查slave在不在列表中
 def check_slave_in_new():
@@ -191,6 +194,7 @@ def check_slave_in_new():
 
 #根据表redis_new_slave检查参数
 def config_check():
+    tmp_error=1
     #redis_conf={'host':test_host,'port':test_port,'decode_responses':True}
     #mysql_conf={'host':'192.168.1.6', 'port':3306, 'user':'mozis', 'passwd':'ktlshy34YU$','db':'server_change','charset':"utf8"}
     conn = pymysql.connect(**mysql_conf)
@@ -208,6 +212,7 @@ def config_check():
             #print(priority['slave-priority'])
             if priority['slave-priority'] == '50':
                 #print(11)
+                tmp_error=0
                 continue
             else:
                 #print("error {0}:{1} slave-priority is not 50".format(host,port))
@@ -233,6 +238,7 @@ def config_check():
             #print(status)
             if status == 'up':
                 #print(22)
+                tmp_error=0
                 continue
             else:
                 print("error {0}:{1} slave status is down!!!".format(host,port))
@@ -255,6 +261,7 @@ def config_check():
             #print(status)
             if status == 'up':
                 #print(22)
+                tmp_error=0
                 continue
             else:
                 print("error {0}:{1} slave status is down!!!".format(host,port))
@@ -277,11 +284,14 @@ def config_check():
             #print(status)
             if status == 'up':
                 #print(22)
+                tmp_error=0
                 continue
             else:
                 print("error {0}:{1} slave status is down!!!".format(host,port))
         else:
-            print(5)
+            tmp_error=1
+    conn.close()
+    return(tmp_error)
 
 #切换
 def change():
@@ -344,39 +354,73 @@ def change():
                 print("{0} sentinel failover error !".format(sentinelname))
 
 
-
+#总检查
+def all_check():
+    check_error=0
+    sentinel_get=all_sentinel_get()
+    if sentinel_get != 0:
+        check_error += 1
+        print("{0} | sentinel get error".format(check_error))
+    delete_note=delete_no_use()
+    if delete_note != 0:
+        check_error += 1
+        print("{0} | delete  error".format(check_error))
+    check_sentinel_note=check_sentinel(num_of_sentinel)
+    if check_sentinel_note != 0:
+        check_error += 1
+        print("{0} | check sentinel  error".format(check_error))
+    check_slave_note=check_slave(num_of_slave)
+    if check_slave_note != 0:
+        check_error += 1
+        print("{0} | check slave  error".format(check_error))
+    check_config=config_check()
+    if check_config != 0:
+        check_error += 1
+        print("{0} | check config  error".format(check_error))   
+    return(check_error)
 
 
 
 def main():
-    sentinel_get=all_sentinel_get()
-    print(sentinel_get)
-    delete_note=delete_no_use()
-    if delete_note != 1:
-        print("ERROR1")
-        return("ERROR")
-    check_sentinel_note=check_sentinel(num_of_sentinel)
-    if check_sentinel_note != 1:
-        #print("ERROR")
-        return("ERROR2")
-    check_slave_note=check_slave(num_of_slave)
-    if check_slave_note != 1:
-        #print("ERROR")
-        return("ERROR3")
+    #sentinel_get=all_sentinel_get()
+    #print(sentinel_get)
+    #delete_note=delete_no_use()
+    #if delete_note != 0:
+    #    #print("DELETE ERROR1")
+    #    return("DELETE ERROR")
+    #check_sentinel_note=check_sentinel(num_of_sentinel)
+    #if check_sentinel_note != 0:
+    #    #print("ERROR")
+    #    return("CHECK SENTINEL ERROR")
+    #check_slave_note=check_slave(num_of_slave)
+    #if check_slave_note != 0:
+    #    #print("ERROR")
+    #    return("CHECK SLAVE ERROR3")
+    #config_check()
+    if tpye == 'check':
+        check_error=all_check()
+        if check_error == 0:
+            print("check ok")
+        else:
+            return("check_error {0}".format(check_error))
+    elif tpye == 'execute':
+        check_error=all_check()
+        if check_error == 0:
+            change()
+        else:
+            return("check_error {0}".format(check_error))
     print("done")
-
-
-
+    
 if __name__ == "__main__":
     #全局参数
     #dic_name_to_sentinel={}
     parser=_argparse()
+    tpye=parser._type#检查或者切换
     number = int(parser.wait) #切换后判断等待xxs
     num_of_sentinel=parser.sentinel #判断每个redis的sentinel数
     num_of_slave=parser.slave #判断每个redis的slave数
+    file_sentinle_name='/data/python-redis/sentinle_name.txt'
     redis_conf={'host':'192.168.1.10','port':26379,'decode_responses':True}
     mysql_conf={'host':'192.168.1.6', 'port':3306, 'user':'mozis', 'passwd':'ktlshy34YU$','db':'server_change','charset':"utf8"}
     main()
     #check_slave_in_new()
-    config_check()
-    change()
