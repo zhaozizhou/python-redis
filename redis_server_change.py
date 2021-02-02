@@ -7,26 +7,16 @@ import argparse
 from argparse import RawTextHelpFormatter
 #sentinel = Sentinel([('192.168.1.10', 26379)], socket_timeout=0.1)
 
-###声明全局变量
-dic_name_to_sentinel={}
-###创建数据库连接
-#conn = pymysql.connect(host='192.168.1.6', port=3306, user='mozis', passwd='ktlshy34YU$',db='server_change',charset="utf8")
-#cursor = conn.cursor()
-# 使用 execute()  方法执行 SQL 查询 
-#cursor.execute("select 1;")
-# 使用 fetchone() 方法获取单条数据.
-#data = cursor.fetchall()
-# 关闭数据库连接
-#conn.close()
+
+
+
 
 ###传入参数
-def _argparse():  
+def _argparse():
     head = '''--------------------------------------------------------------------------
-5年设备替换 -- redis切换脚本
+                    5年设备替换 -- redis切换脚本
 --------------------------------------------------------------------------'''
-
     example_text = '''examples:
-
     \n
 '''
     parser = argparse.ArgumentParser(description=head,formatter_class=RawTextHelpFormatter, epilog=example_text)
@@ -36,20 +26,15 @@ def _argparse():
     parser.add_argument('-t',choices=['check','execute'],default='check',dest='_type',required=True,help='检查check OR 执行切换execute')
     return parser.parse_args()
 
-
-
-
-
-
 #取master0  mastername sentinel等信息
 def all_sentinel_get():
-    conn = pymysql.connect(host='192.168.1.6', port=3306, user='mozis', passwd='ktlshy34YU$',db='server_change',charset="utf8")
+    conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
     try:
         cursor.execute("truncate table redis_sentinel;")
     except pymysql.Error as e:
         return(e.args[0], e.args[1])
-    r=redis.Redis(host='192.168.1.10',port=26379)
+    r=redis.Redis(**redis_conf)
     #print(r.info(section=None)['master0']['name'])
     all=r.info(section='Sentinel')
     #print(r.info(section='Sentinel')['master0'])
@@ -73,11 +58,10 @@ def all_sentinel_get():
     conn.close()
     return("all get ok")
 
-
 ##删除不在列表里的sentinle name
 def delete_no_use():
     tuple_table_name=[]
-    conn = pymysql.connect(host='192.168.1.6', port=3306, user='mozis', passwd='ktlshy34YU$',db='server_change',charset="utf8")
+    conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
     list_table_name_tmp=[]
     try:
@@ -125,10 +109,9 @@ def delete_no_use():
             return ("delete error")
         #return("delete  ok")
 
-
 ##检查redis的sentinel数
 def check_sentinel(num_of_sentinel):
-    conn = pymysql.connect(host='192.168.1.6', port=3306, user='mozis', passwd='ktlshy34YU$',db='server_change',charset="utf8")
+    conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
     cursor.execute("select count(*) from redis_sentinel where sentinel_num != {0};".format(num_of_sentinel))
     count_sentinel = cursor.fetchall()
@@ -147,10 +130,9 @@ def check_sentinel(num_of_sentinel):
             print("ERROR sentinel for {0} is {1}".format(li[0],li[1]))
         return 2
 
-
 ##检查redis的slave数
 def check_slave(num_of_slave):
-    conn = pymysql.connect(host='192.168.1.6', port=3306, user='mozis', passwd='ktlshy34YU$',db='server_change',charset="utf8")
+    conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
     cursor.execute("select count(*) from redis_sentinel where slave_num != {0};".format(num_of_slave))
     count_slave = cursor.fetchall()
@@ -169,11 +151,9 @@ def check_slave(num_of_slave):
             print("ERROR slave for {0} is {1}".format(li[0],li[1]))
         return 2
 
-
-
 #检查slave在不在列表中
 def check_slave_in_new():
-    conn = pymysql.connect(host='192.168.1.6', port=3306, user='mozis', passwd='ktlshy34YU$',db='server_change',charset="utf8")
+    conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
     test_host='192.168.1.6'
     test_port=6379
@@ -211,10 +191,8 @@ def check_slave_in_new():
 
 #根据表redis_new_slave检查参数
 def config_check():
-    #test_host='192.168.1.6'
-    #test_port=6379
     #redis_conf={'host':test_host,'port':test_port,'decode_responses':True}
-    mysql_conf={'host':'192.168.1.6', 'port':3306, 'user':'mozis', 'passwd':'ktlshy34YU$','db':'server_change','charset':"utf8"}
+    #mysql_conf={'host':'192.168.1.6', 'port':3306, 'user':'mozis', 'passwd':'ktlshy34YU$','db':'server_change','charset':"utf8"}
     conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor(cursor=pymysql.cursors.DictCursor)
     cursor.execute("select * from redis_new_slave;")
@@ -305,12 +283,11 @@ def config_check():
         else:
             print(5)
 
-
 #切换
 def change():
     #sentinel = Sentinel([('192.168.1.10', 26379),('192.168.1.10', 26380),('192.168.1.10', 26382),],socket_timeout=0.5)
-    redis_conf={'host':'192.168.1.10','port':26379,'decode_responses':True}
-    mysql_conf={'host':'192.168.1.6', 'port':3306, 'user':'mozis', 'passwd':'ktlshy34YU$','db':'server_change','charset':"utf8"}
+    #redis_conf={'host':'192.168.1.10','port':26379,'decode_responses':True}
+    #mysql_conf={'host':'192.168.1.6', 'port':3306, 'user':'mozis', 'passwd':'ktlshy34YU$','db':'server_change','charset':"utf8"}
     conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
     cursor.execute("select master_name from redis_sentinel;")
@@ -391,11 +368,14 @@ def main():
 
 
 if __name__ == "__main__":
+    #全局参数
+    #dic_name_to_sentinel={}
     parser=_argparse()
     number = int(parser.wait) #切换后判断等待xxs
     num_of_sentinel=parser.sentinel #判断每个redis的sentinel数
     num_of_slave=parser.slave #判断每个redis的slave数
-
+    redis_conf={'host':'192.168.1.10','port':26379,'decode_responses':True}
+    mysql_conf={'host':'192.168.1.6', 'port':3306, 'user':'mozis', 'passwd':'ktlshy34YU$','db':'server_change','charset':"utf8"}
     main()
     #check_slave_in_new()
     config_check()
