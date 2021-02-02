@@ -1,4 +1,5 @@
 import redis
+import os.path
 import pymysql
 from redis.sentinel import Sentinel
 import datetime
@@ -6,11 +7,7 @@ import time
 import argparse
 from argparse import RawTextHelpFormatter
 from tqdm import tqdm
-#sentinel = Sentinel([('192.168.1.10', 26379)], socket_timeout=0.1)
-
-
-
-
+import logging
 
 ###传入参数
 def _argparse():
@@ -18,6 +15,7 @@ def _argparse():
                     5年设备替换 -- redis切换脚本
 --------------------------------------------------------------------------'''
     example_text = '''examples:
+    redis_server_change.py -w 10 -S 3 -s 3 -t check
     \n
 '''
     parser = argparse.ArgumentParser(description=head,formatter_class=RawTextHelpFormatter, epilog=example_text)
@@ -29,36 +27,40 @@ def _argparse():
 
 #取master0  mastername sentinel等信息
 def all_sentinel_get():
+    logger.debug("+---- START GET SENTINEL LIST ----+")
     conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
     try:
         cursor.execute("truncate table redis_sentinel;")
     except pymysql.Error as e:
+        logger.warning(e.args[0], e.args[1])
         return(e.args[0], e.args[1])
     r=redis.Redis(**redis_conf)
-    #print(r.info(section=None)['master0']['name'])
+    #logger.debug(r.info(section=None)['master0']['name'])
+    #logger.debug(r.info(section=None)['master0']['name'])
     all=r.info(section='Sentinel')
     #print(r.info(section='Sentinel')['master0'])
     list_master_num=list(r.info(section='Sentinel').keys())
     master_num=list_master_num[4:]
-    #print(master_num)
+    logger.debug("+---- ALL SENTINEL LIST ----+")
+    logger.debug(str(master_num))
     for num in tqdm(master_num,desc="GET REDIS_MASTER_NAME"):
         #print(num)
         name_sentinel=all[num]['name']
         num_sentinel=all[num]['sentinels']
-        #print(num_sentinel)
         status_sentinel=all[num]['status']
         slave_sentinel=all[num]['slaves']
         address=all[num]['address']
-        #print(address)
         try:
             cursor.execute("insert into redis_sentinel(masterid,master_name,status,slave_num,sentinel_num,old_master) values('{0}','{1}','{2}','{3}','{4}','{5}');".format(num,name_sentinel,status_sentinel,slave_sentinel,num_sentinel,address))
             conn.commit()
         except pymysql.Error as e:
             conn.rollback()
             conn.close()
+            logger.warning(e.args[0], e.args[1])
             return(e.args[0], e.args[1])
     conn.close()
+    logger.debug("+---- SENTINEL GET OK ----+")
     return(0)
 
 ##删除不在列表里的sentinle name
@@ -380,23 +382,7 @@ def all_check():
     return(check_error)
 
 
-
 def main():
-    #sentinel_get=all_sentinel_get()
-    #print(sentinel_get)
-    #delete_note=delete_no_use()
-    #if delete_note != 0:
-    #    #print("DELETE ERROR1")
-    #    return("DELETE ERROR")
-    #check_sentinel_note=check_sentinel(num_of_sentinel)
-    #if check_sentinel_note != 0:
-    #    #print("ERROR")
-    #    return("CHECK SENTINEL ERROR")
-    #check_slave_note=check_slave(num_of_slave)
-    #if check_slave_note != 0:
-    #    #print("ERROR")
-    #    return("CHECK SLAVE ERROR3")
-    #config_check()
     if tpye == 'check':
         check_error=all_check()
         if check_error == 0:
@@ -413,14 +399,30 @@ def main():
     
 if __name__ == "__main__":
     #全局参数
-    #dic_name_to_sentinel={}
     parser=_argparse()
     tpye=parser._type#检查或者切换
     number = int(parser.wait) #切换后判断等待xxs
     num_of_sentinel=parser.sentinel #判断每个redis的sentinel数
     num_of_slave=parser.slave #判断每个redis的slave数
-    file_sentinle_name='/data/python-redis/sentinle_name.txt'
+    file_sentinle_name='/data/python-redis/sentinle_name.txt' #sentinle_name文件位置
     redis_conf={'host':'192.168.1.10','port':26379,'decode_responses':True}
     mysql_conf={'host':'192.168.1.6', 'port':3306, 'user':'mozis', 'passwd':'ktlshy34YU$','db':'server_change','charset':"utf8"}
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)  # Log等级总开关
+    # 创建一个handler，用于写入日志文件
+    rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time()))
+    log_path = os.getcwd()
+    log_name = log_path + '/logs/redis_server_change_' + rq + '.log'
+    logfile = log_name
+    fh = logging.FileHandler(logfile, mode='w')
+    fh.setLevel(logging.DEBUG)  # 输出到file的log等级的开关
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.WARNING)  # 输出到console的log等级的开关
+    # 定义handler的输出格式
+    formatter = logging.Formatter("(%(funcName)s)[%(levelname)s]: %(message)s")
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
     main()
     #check_slave_in_new()
