@@ -27,13 +27,13 @@ def _argparse():
 
 #取master0  mastername sentinel等信息
 def all_sentinel_get():
-    logger.debug("+---- START GET SENTINEL LIST ----+")
+    logger.info("===== START GET SENTINEL LIST =====")
     conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
     try:
         cursor.execute("truncate table redis_sentinel;")
     except pymysql.Error as e:
-        logger.warning(e.args[0], e.args[1])
+        logger.error(e.args[0], e.args[1])
         return(e.args[0], e.args[1])
     r=redis.Redis(**redis_conf)
     #logger.debug(r.info(section=None)['master0']['name'])
@@ -42,8 +42,8 @@ def all_sentinel_get():
     #print(r.info(section='Sentinel')['master0'])
     list_master_num=list(r.info(section='Sentinel').keys())
     master_num=list_master_num[4:]
-    logger.debug("+---- ALL SENTINEL LIST ----+")
-    logger.debug(str(master_num))
+    logger.info("===== ALL SENTINEL LIST =====")
+    logger.info(str(master_num))
     for num in tqdm(master_num,desc="GET REDIS_MASTER_NAME"):
         #print(num)
         name_sentinel=all[num]['name']
@@ -57,14 +57,15 @@ def all_sentinel_get():
         except pymysql.Error as e:
             conn.rollback()
             conn.close()
-            logger.warning(e.args[0], e.args[1])
+            logger.error(e.args[0], e.args[1])
             return(e.args[0], e.args[1])
     conn.close()
-    logger.debug("+---- SENTINEL GET OK ----+")
+    logger.info("===== SENTINEL GET OK =====")
     return(0)
 
 ##删除不在列表里的sentinle name
 def delete_no_use():
+    logger.info("===== START DELETE SENTINEL NO CHANGE =====")
     tuple_table_name=[]
     conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
@@ -72,7 +73,7 @@ def delete_no_use():
     try:
         f = open(file_sentinle_name)             # 返回一个文件对象  
     except IOError as e:
-        #print(e)
+        logger.error(e)
         return(e)
     else:
         lines = f.readlines()
@@ -87,7 +88,8 @@ def delete_no_use():
             list_table_name = list_table_name.strip("\n")
             list_tmp1 += "'{0}',".format(list_table_name)
             tuple_table_name = list_tmp1[0:-1]
-        #print(tuple_table_name)
+        logger.info("===== ALL SENTINEL LIST =====")
+        logger.info(tuple_table_name)
         try:
             #cursor.execute("select master_name from redis_sentinel where master_name not in {0};".format(tuple_table_name))
             #select_master_name_tmp = cursor.fetchall()
@@ -96,7 +98,7 @@ def delete_no_use():
         except pymysql.Error as e:
             conn.rollback()
             conn.close()
-            print(e.args[0], e.args[1])
+            logger.error(e.args[0], e.args[1])
             return(e.args[0], e.args[1])
         #conn.close()
         ###删除之后判断是否一致
@@ -106,16 +108,18 @@ def delete_no_use():
         len_table_name=len(list_table_name_tmp)
         #print(len_table_name)
         if count[0][0] == len_table_name:
-            print("delete ok")
+            logger.info("===== DELETE OK =====")
             conn.close()
             return 0
         else:
             conn.close()
-            return ("delete error")
+            logger.error("+++++ DELETE ERROR +++++")
+            return 1
         #return("delete  ok")
 
 ##检查redis的sentinel数
 def check_sentinel(num_of_sentinel):
+    logger.info("===== START CHECK NUMBER OF SENTINEL =====")
     conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
     cursor.execute("select count(*) from redis_sentinel where sentinel_num != {0};".format(num_of_sentinel))
@@ -123,7 +127,7 @@ def check_sentinel(num_of_sentinel):
     #print(count_sentinel[0][0])
     if count_sentinel[0][0] == 0:
         conn.close()
-        print("check num_sentinel ok")
+        logger.info("===== CHECK NUMBER OF SENTINEL OK =====")
         return 0
     else:
         cursor.execute("select master_name,sentinel_num from redis_sentinel where sentinel_num != {0};".format(num_of_sentinel))
@@ -132,11 +136,12 @@ def check_sentinel(num_of_sentinel):
         #print(error_sentinel)
         for li in error_sentinel:
             #print (li)
-            print("ERROR sentinel for {0} is {1}".format(li[0],li[1]))
+            logger.error("+++++  sentinel for {0} is {1} +++++".format(li[0],li[1]))
         return 1
 
 ##检查redis的slave数
 def check_slave(num_of_slave):
+    logger.info("===== START CHECK NUMBER OF SLAVE =====")
     conn = pymysql.connect(**mysql_conf)
     cursor = conn.cursor()
     cursor.execute("select count(*) from redis_sentinel where slave_num != {0};".format(num_of_slave))
@@ -144,7 +149,7 @@ def check_slave(num_of_slave):
     #print(count_sentinel[0][0])
     if count_slave[0][0] == 0:
         conn.close()
-        print("check num_slave ok")
+        logger.info("===== CHECK NUMBER OF SLAVE OK =====")
         return 0
     else:
         cursor.execute("select master_name,slave_num from redis_sentinel where slave_num != {0};".format(num_of_slave))
@@ -153,7 +158,7 @@ def check_slave(num_of_slave):
         #print(error_sentinel)
         for li in error_slave:
             #print (li)
-            print("ERROR slave for {0} is {1}".format(li[0],li[1]))
+            logger.error("+++++  slave for {0} is {1} +++++".format(li[0],li[1]))
         return 1
 
 #检查slave在不在列表中
@@ -196,7 +201,8 @@ def check_slave_in_new():
 
 #根据表redis_new_slave检查参数
 def config_check():
-    tmp_error=1
+    logger.info("===== START CHECK REDIS CONFIG =====")
+    tmp_error=0
     #redis_conf={'host':test_host,'port':test_port,'decode_responses':True}
     #mysql_conf={'host':'192.168.1.6', 'port':3306, 'user':'mozis', 'passwd':'ktlshy34YU$','db':'server_change','charset':"utf8"}
     conn = pymysql.connect(**mysql_conf)
@@ -206,6 +212,7 @@ def config_check():
     for each_redis in all_redis:
         #print(each_redis)
         if each_redis['role'] == '10': ##原主
+            master_name=each_redis['master_name']
             host=each_redis['ip']
             port=each_redis['port']
             redis_conf={'host':host,'port':port,'decode_responses':True}
@@ -213,15 +220,19 @@ def config_check():
             priority=r.config_get('slave-priority')
             #print(priority['slave-priority'])
             if priority['slave-priority'] == '50':
-                #print(11)
-                tmp_error=0
+                logger.debug("redis [{0}] ({1}:{2}) [role:10] [slave-priority:50]".format(master_name,host,port))
+                #tmp_error=0
                 continue
             else:
+                logger.warning("redis [{0}] ({1}:{2}) [role:10] slave-priority is not 50".format(master_name,host,port))
                 #print("error {0}:{1} slave-priority is not 50".format(host,port))
                 r.config_set('slave-priority','50')
                 r.config_rewrite()
+                logger.warning("redis [{0}] ({1}:{2}) [role:10] slave-priority is change to 50".format(master_name,host,port))
                 #print(" {0}:{1} slave-priority is change to 50".format(host,port))
+                tmp_error += 1
         elif each_redis['role'] == '11': ##原从
+            master_name=each_redis['master_name']
             host=each_redis['ip']
             port=each_redis['port']
             redis_conf={'host':host,'port':port,'decode_responses':True}
@@ -229,22 +240,29 @@ def config_check():
             priority=r.config_get('slave-priority')
             #print(priority['slave-priority'])
             if priority['slave-priority'] == '50':
-                #print(11)
-                continue
+                logger.debug("redis [{0}] ({1}:{2}) [role:11] [slave-priority:50]".format(master_name,host,port))
+                #continue
             else:
+                logger.warning("redis [{0}] ({1}:{2}) [role:11] slave-priority is not 50".format(master_name,host,port))
                 #print("error {0}:{1} slave-priority is not 50".format(host,port))
                 r.config_set('slave-priority','50')
                 r.config_rewrite()
+                logger.warning("redis [{0}] ({1}:{2}) [role:11] slave-priority is change to 50".format(master_name,host,port))
                 #print(" {0}:{1} slave-priority is change to 50".format(host,port))
+                tmp_error += 1
             status=r.info(section='Replication')['master_link_status']
             #print(status)
             if status == 'up':
+                logger.debug("redis [{0}] ({1}:{2}) is up".format(master_name,host,port))
                 #print(22)
-                tmp_error=0
+                #tmp_error=0
                 continue
             else:
-                print("error {0}:{1} slave status is down!!!".format(host,port))
+                logger.error("redis [{0}] ({1}:{2}) is down!!!".format(master_name,host,port))
+                #print("error {0}:{1} slave status is down!!!".format(host,port))
+                tmp_error += 1
         elif each_redis['role'] == '0': ##新主
+            master_name=each_redis['master_name']
             host=each_redis['ip']
             port=each_redis['port']
             redis_conf={'host':host,'port':port,'decode_responses':True}
@@ -252,22 +270,29 @@ def config_check():
             priority=r.config_get('slave-priority')
             #print(priority['slave-priority'])
             if priority['slave-priority'] == '30':
-                #print(11)
-                continue
+                logger.debug("redis [{0}] ({1}:{2}) [role:0] [slave-priority:30]".format(master_name,host,port))
+                #continue
             else:
+                logger.warning("redis [{0}] ({1}:{2}) [role:0] slave-priority is not 30".format(master_name,host,port))
                 #print("error {0}:{1} slave-priority is not 30".format(host,port))
                 r.config_set('slave-priority','30')
                 r.config_rewrite()
+                logger.warning("redis [{0}] ({1}:{2}) [role:0] slave-priority is change to 30".format(master_name,host,port))
                 #print(" {0}:{1} slave-priority is change to 30".format(host,port))
+                tmp_error += 1
             status=r.info(section='Replication')['master_link_status']
             #print(status)
             if status == 'up':
+                logger.debug("redis [{0}] ({1}:{2}) is up".format(master_name,host,port))
                 #print(22)
-                tmp_error=0
+                #tmp_error=0
                 continue
             else:
-                print("error {0}:{1} slave status is down!!!".format(host,port))
+                logger.error("redis [{0}] ({1}:{2}) is down!!!".format(master_name,host,port))
+                #print("error {0}:{1} slave status is down!!!".format(host,port))
+                tmp_error += 1
         elif each_redis['role'] == '1': ##新从
+            master_name=each_redis['master_name']
             host=each_redis['ip']
             port=each_redis['port']
             redis_conf={'host':host,'port':port,'decode_responses':True}
@@ -275,28 +300,42 @@ def config_check():
             priority=r.config_get('slave-priority')
             #print(priority['slave-priority'])
             if priority['slave-priority'] == '70':
-                #print(11)
-                continue
+                logger.debug("redis [{0}] ({1}:{2}) [role:1] [slave-priority:70]".format(master_name,host,port))
+                #continue
             else:
+                logger.warning("redis [{0}] ({1}:{2}) [role:1] slave-priority is not 70".format(master_name,host,port))
                 #print("error {0}:{1} slave-priority is not 70".format(host,port))
                 r.config_set('slave-priority','70')
                 r.config_rewrite()
+                logger.warning("redis [{0}] ({1}:{2}) [role:1] slave-priority is change to 70".format(master_name,host,port))
                 #print(" {0}:{1} slave-priority is change to 70".format(host,port))
+                tmp_error += 1
             status=r.info(section='Replication')['master_link_status']
             #print(status)
             if status == 'up':
+                logger.debug("redis [{0}] ({1}:{2}) is up".format(master_name,host,port))
                 #print(22)
-                tmp_error=0
+                #tmp_error=0
                 continue
             else:
-                print("error {0}:{1} slave status is down!!!".format(host,port))
+                logger.error("redis [{0}] ({1}:{2}) is down!!!".format(master_name,host,port))
+                #print("error {0}:{1} slave status is down!!!".format(host,port))
+                tmp_error += 1
         else:
-            tmp_error=1
+            logger.error("mysql [redis_new_slave] ({0}) role error".format(each_redis))
+            tmp_error += 1
     conn.close()
-    return(tmp_error)
+    if tmp_error == 0:
+        logger.info("=====  CHECK REDIS CONFIG DONE =====")
+        return(tmp_error)
+    else:
+        logger.error("+++++  CHECK REDIS CONFIG ERROR +++++")
+        return(tmp_error)
 
 #切换
 def change():
+    logger.info("=====  START CHANGE =====")
+    change_error=0
     #sentinel = Sentinel([('192.168.1.10', 26379),('192.168.1.10', 26380),('192.168.1.10', 26382),],socket_timeout=0.5)
     #redis_conf={'host':'192.168.1.10','port':26379,'decode_responses':True}
     #mysql_conf={'host':'192.168.1.6', 'port':3306, 'user':'mozis', 'passwd':'ktlshy34YU$','db':'server_change','charset':"utf8"}
@@ -312,11 +351,12 @@ def change():
         #master = sentinel.discover_master(sentinelname)
         #print(master)
         #print(dt)
+        sentinelname_1="'"+sentinelname+"'"
         try:
-            cursor.execute("update redis_sentinel set starttime = {0};".format(dt_begin)) ######开始
+            cursor.execute("update redis_sentinel set starttime = {0} where master_name = {1};".format(dt_begin,sentinelname_1)) ######开始
             conn.commit()
         except pymysql.Error as e:
-            print(e.args[0], e.args[1])
+            logger.error(e.args[0], e.args[1])
             conn.rollback()
         r = redis.Redis(**redis_conf)
         p=r.sentinel_failover(sentinelname)
@@ -324,7 +364,7 @@ def change():
         for i in range(number):
             time.sleep(1)
             if p == 'OK':
-                sentinelname_1="'"+sentinelname+"'"
+                #sentinelname_1="'"+sentinelname+"'"
                 cursor.execute("select masterid from redis_sentinel where master_name = {0};".format(sentinelname_1))
                 masterid=cursor.fetchone()
                 #print()
@@ -333,7 +373,7 @@ def change():
                 address=all[masterid[0]]['address']
                 address_1="'"+address+"'"
                 try:
-                    cursor.execute("update redis_sentinel set new_master = {0};".format(address_1))
+                    cursor.execute("update redis_sentinel set new_master = {0} where master_name = {1};".format(address_1,sentinelname_1))
                     conn.commit()
                 except pymysql.Error as e:
                     print(e.args[0], e.args[1])
@@ -348,12 +388,18 @@ def change():
                     dt_end=datetime.datetime.now().strftime("%Y%m%d%H%M%S")
                     cursor.execute("update redis_sentinel set endtime = {0};".format(dt_end)) ######结束
                     conn.commit()
-                    print("change {0} ok !".format(sentinelname))
+                    logger.info("change {0} ok !".format(sentinelname))
                     break
                 else:
-                    print(" {0} change checking ...".format(sentinelname))
+                    logger.debug(" {0} change checking ...".format(sentinelname))
             else:
-                print("{0} sentinel failover error !".format(sentinelname))
+                logger.error("{0} sentinel failover error !".format(sentinelname))
+                change_error += 1
+        logger.error("{0} sentinel failover error !".format(sentinelname))
+        change_error += 1
+        if change_error >= 3:
+            logger.critical("!!!!!!!!!! CHANGE ERROR MORETHAN 3!!!!!!!!!!")
+            break
 
 
 #总检查
@@ -362,23 +408,23 @@ def all_check():
     sentinel_get=all_sentinel_get()
     if sentinel_get != 0:
         check_error += 1
-        print("{0} | sentinel get error".format(check_error))
+        logger.critical("{0} | sentinel get error".format(check_error))
     delete_note=delete_no_use()
     if delete_note != 0:
         check_error += 1
-        print("{0} | delete  error".format(check_error))
+        logger.critical("{0} | delete  error".format(check_error))
     check_sentinel_note=check_sentinel(num_of_sentinel)
     if check_sentinel_note != 0:
         check_error += 1
-        print("{0} | check sentinel  error".format(check_error))
+        logger.critical("{0} | check sentinel  error".format(check_error))
     check_slave_note=check_slave(num_of_slave)
     if check_slave_note != 0:
         check_error += 1
-        print("{0} | check slave  error".format(check_error))
+        logger.critical("{0} | check slave  error".format(check_error))
     check_config=config_check()
     if check_config != 0:
         check_error += 1
-        print("{0} | check config  error".format(check_error))   
+        logger.critical("{0} | check config  error".format(check_error))   
     return(check_error)
 
 
@@ -386,16 +432,18 @@ def main():
     if tpye == 'check':
         check_error=all_check()
         if check_error == 0:
-            print("check ok")
+            logger.info("===== ALL CHECK DONE =====")
         else:
-            return("check_error {0}".format(check_error))
+            logger.critical("check_error {0}".format(check_error))
+            return 1
     elif tpye == 'execute':
         check_error=all_check()
         if check_error == 0:
             change()
         else:
-            return("check_error {0}".format(check_error))
-    print("done")
+            logger.critical("check_error {0}".format(check_error))
+            return 1
+    logger.info("===== ALL CHANGE DONE =====")
     
 if __name__ == "__main__":
     #全局参数
@@ -417,7 +465,7 @@ if __name__ == "__main__":
     fh = logging.FileHandler(logfile, mode='w')
     fh.setLevel(logging.DEBUG)  # 输出到file的log等级的开关
     ch = logging.StreamHandler()
-    ch.setLevel(logging.WARNING)  # 输出到console的log等级的开关
+    ch.setLevel(logging.INFO)  # 输出到console的log等级的开关
     # 定义handler的输出格式
     formatter = logging.Formatter("(%(funcName)s)[%(levelname)s]: %(message)s")
     fh.setFormatter(formatter)
