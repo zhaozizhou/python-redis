@@ -44,7 +44,8 @@ def all_sentinel_get():
     master_num=list_master_num[4:]
     logger.info("===== ALL SENTINEL LIST =====")
     logger.info(str(master_num))
-    for num in tqdm(master_num,desc="GET REDIS_MASTER_NAME"):
+    #for num in tqdm(master_num,desc="GET REDIS_MASTER_NAME"):
+    for num in master_num:
         #print(num)
         name_sentinel=all[num]['name']
         num_sentinel=all[num]['sentinels']
@@ -344,7 +345,7 @@ def change():
     cursor.execute("select master_name from redis_sentinel;")
     all_redis=cursor.fetchall()
     #print(all_redis)
-    for change_sentinel in all_redis:
+    for change_sentinel in tqdm(all_redis,desc="CHANGING"):
         dt_begin=datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         #print(change_sentinel[0])
         sentinelname=change_sentinel[0]
@@ -393,13 +394,15 @@ def change():
                 else:
                     logger.debug(" {0} change checking ...".format(sentinelname))
             else:
-                logger.error("{0} sentinel failover error !".format(sentinelname))
+                logger.error("[failover status check ] {0} sentinel failover error !".format(sentinelname))
                 change_error += 1
-        logger.error("{0} sentinel failover error !".format(sentinelname))
-        change_error += 1
+            logger.error("[time out] {0} sentinel failover error !".format(sentinelname))
+            change_error += 1
         if change_error >= 3:
             logger.critical("!!!!!!!!!! CHANGE ERROR MORETHAN 3!!!!!!!!!!")
             break
+            #return(change_error)
+    return(change_error)
 
 
 #总检查
@@ -434,16 +437,20 @@ def main():
         if check_error == 0:
             logger.info("===== ALL CHECK DONE =====")
         else:
-            logger.critical("check_error {0}".format(check_error))
+            logger.critical("+++++ CHECK ERROR {0} +++++".format(check_error))
             return 1
     elif tpye == 'execute':
         check_error=all_check()
         if check_error == 0:
-            change()
+            change_error=change()
+            if change_error == 0:
+                logger.info("===== ALL CHANGE DONE =====")
+            else:
+                logger.critical("+++++ CHANGE ERROR {0} +++++".format(change_error))
+                return 1
         else:
-            logger.critical("check_error {0}".format(check_error))
+            logger.critical("+++++ CHECK ERROR {0} +++++".format(check_error))
             return 1
-    logger.info("===== ALL CHANGE DONE =====")
     
 if __name__ == "__main__":
     #全局参数
