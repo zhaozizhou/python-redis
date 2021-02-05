@@ -61,6 +61,16 @@ for num in master_num:
     dict_mastername_address[name_sentinel]=address
 print(dict_mastername_address)
 
+address=''
 for key in dict_mastername_address:
-    if key == 'mymaster':
-        print(key+':'+dict_mastername_address[key])
+    if key == 'mymaster+3':
+        #print(key+':'+dict_mastername_address[key])
+        address=dict_mastername_address[key]
+        print(address)
+        break
+
+if address == '':
+    print("mymaster in redis-sentinel ip addr error!")
+else:
+    address_1="'"+address+"'"
+    print(address_1)

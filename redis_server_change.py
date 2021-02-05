@@ -376,6 +376,7 @@ def change():
                     address=all[num]['address']
                     dict_mastername_address[name_sentinel]=address
                 #logger.debug(dict_mastername_address)
+                address=''
                 for key in dict_mastername_address:
                     if key == sentinelname:
                         address=dict_mastername_address[key]            
@@ -385,7 +386,12 @@ def change():
                 #all=r.info(section='Sentinel')
                 #print(all)
                 #address=all[masterid[0]]['address']
-                address_1="'"+address+"'"
+                if address != '':
+                    address_1="'"+address+"'"
+                else:
+                    logger.error("[{0}] in redis-sentinel ip addr error!".format(sentinelname))
+                    change_error += 1
+                    break
                 try:
                     cursor.execute("update redis_sentinel set new_master = {0} where master_name = {1};".format(address_1,sentinelname_1))
                     conn.commit()
