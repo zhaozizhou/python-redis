@@ -409,6 +409,7 @@ def change():
             else:
                 logger.error("[failover status check ] {0} sentinel failover error !".format(sentinelname))
                 change_error += 1
+                break
             timeout=i+1
             logger.debug("{0} change timeout = {1}".format(sentinelname,timeout))
             if timeout == number:    
