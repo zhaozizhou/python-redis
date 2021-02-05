@@ -366,12 +366,25 @@ def change():
             time.sleep(1)
             if p == 'OK':
                 #sentinelname_1="'"+sentinelname+"'"
-                cursor.execute("select masterid from redis_sentinel where master_name = {0};".format(sentinelname_1))
-                masterid=cursor.fetchone()
-                #print()
+                dict_mastername_address={}
                 all=r.info(section='Sentinel')
+                list_master_num=list(r.info(section='Sentinel').keys())
+                master_num=list_master_num[4:]
+                for num in master_num:
+                    #print(num)
+                    name_sentinel=all[num]['name']
+                    address=all[num]['address']
+                    dict_mastername_address[name_sentinel]=address
+                #logger.debug(dict_mastername_address)
+                for key in dict_mastername_address:
+                    if key == sentinelname:
+                        address=dict_mastername_address[key]            
+                #cursor.execute("select masterid from redis_sentinel where master_name = {0};".format(sentinelname_1))
+                #masterid=cursor.fetchone()
+                #print()
+                #all=r.info(section='Sentinel')
                 #print(all)
-                address=all[masterid[0]]['address']
+                #address=all[masterid[0]]['address']
                 address_1="'"+address+"'"
                 try:
                     cursor.execute("update redis_sentinel set new_master = {0} where master_name = {1};".format(address_1,sentinelname_1))
@@ -396,7 +409,9 @@ def change():
             else:
                 logger.error("[failover status check ] {0} sentinel failover error !".format(sentinelname))
                 change_error += 1
-            if i == number:    
+            timeout=i+1
+            logger.debug("{0} change timeout = {1}".format(sentinelname,timeout))
+            if timeout == number:    
                 logger.error("[time out] {0} sentinel failover error !".format(sentinelname))
                 change_error += 1
         if change_error >= 3:
