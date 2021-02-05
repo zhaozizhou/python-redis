@@ -39,7 +39,7 @@ def all_sentinel_get():
     #logger.debug(r.info(section=None)['master0']['name'])
     #logger.debug(r.info(section=None)['master0']['name'])
     all=r.info(section='Sentinel')
-    #print(r.info(section='Sentinel')['master0'])
+    print(all )
     list_master_num=list(r.info(section='Sentinel').keys())
     master_num=list_master_num[4:]
     logger.info("===== ALL SENTINEL LIST =====")
@@ -396,8 +396,9 @@ def change():
             else:
                 logger.error("[failover status check ] {0} sentinel failover error !".format(sentinelname))
                 change_error += 1
-            logger.error("[time out] {0} sentinel failover error !".format(sentinelname))
-            change_error += 1
+            if i == number:    
+                logger.error("[time out] {0} sentinel failover error !".format(sentinelname))
+                change_error += 1
         if change_error >= 3:
             logger.critical("!!!!!!!!!! CHANGE ERROR MORETHAN 3!!!!!!!!!!")
             break
