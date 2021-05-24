@@ -1,0 +1,5 @@
+redis-cli -h 192.168.1.6 -p 6379 config set slave-priority 10
+redis-cli -h 192.168.1.6 -p 6381 config set slave-priority 10
+redis-cli -h 192.168.1.10 -p 26379 sentinel failover mymaster
+redis-cli -h 192.168.1.10 -p 26379 sentinel failover master_2
+redis-cli -h 192.168.1.10 -p 26379 info Sentinel
